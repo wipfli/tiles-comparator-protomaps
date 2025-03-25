@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tiles Comparator Protomaps</title>
+    <script src='https://unpkg.com/maplibre-gl@3.3.1/dist/maplibre-gl.js'></script>
+    <link href='https://unpkg.com/maplibre-gl@3.3.1/dist/maplibre-gl.css' rel='stylesheet' />
+    <script src="https://unpkg.com/pmtiles@3.2.0/dist/pmtiles.js"></script>
+
+    <style>
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: Arial, sans-serif;
+        }
+
+        #map-container {
+            display: flex;
+            height: 100vh;
+        }
+
+        .map {
+            flex: 1;
+            position: relative;
+        }
+
+        /* New spacer styles */
+        .map-spacer {
+            width: 10px;
+            background-color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: col-resize;
+        }
+
+        .map-spacer::before {
+            content: '⋮';
+            color: #888;
+            font-size: 24px;
+            user-select: none;
+        }
+
+        @media (max-width: 768px) {
+            #map-container {
+                flex-direction: column;
+            }
+
+            .map-spacer {
+                width: 100%;
+                height: 10px;
+            }
+
+            .map-spacer::before {
+                content: '⋯';
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="map-container">
+        <div id="left-map" class="map"></div>
+        <div class="map-spacer"></div>
+        <div id="right-map" class="map"></div>
+    </div>
+
+    <script>
+        async function initMaps() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const leftPmtilesUrl = urlParams.get('left');
+            const rightPmtilesUrl = urlParams.get('right');
+
+            if (!leftPmtilesUrl || !rightPmtilesUrl) {
+                alert('Please provide both left and right PMTiles URLs');
+                return;
+            }
+
+            const r = await fetch('./style.json');
+            const styleJson = await r.json();
+
+            // Function to parse hash URL
+            function parseMapHash() {
+                // Default values
+                const defaultZoom = 2;
+                const defaultCenter = [0, 0];
+
+                // Try to parse hash
+                const hash = window.location.hash.replace('#map=', '');
+                const parts = hash.split('/').map(parseFloat);
+
+                // Validate parsed values
+                if (parts.length === 3 && 
+                    !isNaN(parts[0]) && 
+                    !isNaN(parts[1]) && 
+                    !isNaN(parts[2])) {
+                    return { 
+                        zoom: parts[0], 
+                        center: [parts[2], parts[1]] 
+                    };
+                }
+
+                // Fallback to default values
+                return { 
+                    zoom: defaultZoom, 
+                    center: defaultCenter 
+                };
+            }
+
+            // Function to update hash URL
+            function updateMapHash(map) {
+                const center = map.getCenter();
+                const zoom = map.getZoom();
+                window.history.replaceState(null, '', `#map=${zoom.toFixed(2)}/${center.lat.toFixed(4)}/${center.lng.toFixed(4)}`);
+            }
+
+            // Parse initial hash or use defaults
+            const { zoom, center } = parseMapHash();
+
+            // Create maps
+
+            const protocol = new pmtiles.Protocol();
+            maplibregl.addProtocol('pmtiles', protocol.tile);
+
+            const leftStyle = {...styleJson};
+            leftStyle["sources"]["protomaps"]["url"] = 'pmtiles://' + leftPmtilesUrl;
+            const leftMap = new maplibregl.Map({
+                container: 'left-map',
+                style: leftStyle,
+                center: center,
+                zoom: zoom
+            });
+
+            const rightStyle = {...styleJson};
+            rightStyle["sources"]["protomaps"]["url"] = 'pmtiles://' + rightPmtilesUrl;
+            const rightMap = new maplibregl.Map({
+                container: 'right-map',
+                style: rightStyle,
+                center: center,
+                zoom: zoom
+            });
+
+            // Synchronize maps with prevention of recursive calls
+            let isSyncing = false;
+            function syncMaps(source, target) {
+                source.on('move', (e) => {
+                    if (isSyncing) return;
+
+                    isSyncing = true;
+                    const center = source.getCenter();
+                    const zoom = source.getZoom();
+
+                    // Update hash URL
+                    updateMapHash(source);
+
+                    // Use easeTo instead of setCenter to prevent recursive events
+                    target.easeTo({
+                        center: center,
+                        zoom: zoom,
+                        duration: 0
+                    });
+
+                    // Reset sync flag after a short delay
+                    setTimeout(() => {
+                        isSyncing = false;
+                    }, 10);
+                });
+            }
+
+            // Handle initial hash change or direct URL entry
+            window.addEventListener('hashchange', () => {
+                const { zoom, center } = parseMapHash();
+                leftMap.setZoom(zoom);
+                leftMap.setCenter(center);
+                rightMap.setZoom(zoom);
+                rightMap.setCenter(center);
+            });
+
+            // Wait for both maps to load
+            leftMap.on('load', () => {
+                rightMap.on('load', () => {
+                    syncMaps(leftMap, rightMap);
+                    syncMaps(rightMap, leftMap);
+                });
+            });
+        }
+
+        // Initialize maps when page loads
+        initMaps();
+    </script>
+</body>
+
+</html>
