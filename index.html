@@ -45,6 +45,20 @@
             user-select: none;
         }
 
+        /* URL Overlay Styles */
+        .map-url-overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background-color: rgba(255, 255, 255, 0.7);
+            padding: 5px 10px;
+            border-radius: 5px;
+            z-index: 1;
+            max-width: 250px;
+            word-wrap: break-word;
+            font-size: 12px;
+        }
+
         @media (max-width: 768px) {
             #map-container {
                 flex-direction: column;
@@ -64,9 +78,13 @@
 
 <body>
     <div id="map-container">
-        <div id="left-map" class="map"></div>
+        <div id="left-map" class="map">
+            <div id="left-map-url" class="map-url-overlay"></div>
+        </div>
         <div class="map-spacer"></div>
-        <div id="right-map" class="map"></div>
+        <div id="right-map" class="map">
+            <div id="right-map-url" class="map-url-overlay"></div>
+        </div>
     </div>
 
     <script>
@@ -79,6 +97,10 @@
                 alert('Please provide both left and right PMTiles URLs');
                 return;
             }
+
+            // Display URLs in overlays
+            document.getElementById('left-map-url').textContent = leftPmtilesUrl;
+            document.getElementById('right-map-url').textContent = rightPmtilesUrl;
 
             const r = await fetch('./style.json');
             const styleJson = await r.json();
@@ -122,7 +144,6 @@
             const { zoom, center } = parseMapHash();
 
             // Create maps
-
             const protocol = new pmtiles.Protocol();
             maplibregl.addProtocol('pmtiles', protocol.tile);
 
