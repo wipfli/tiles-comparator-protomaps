@@ -147,7 +147,7 @@
             const protocol = new pmtiles.Protocol();
             maplibregl.addProtocol('pmtiles', protocol.tile);
 
-            const leftStyle = {...styleJson};
+            const leftStyle = JSON.parse(JSON.stringify(styleJson));
             leftStyle["sources"]["protomaps"]["url"] = 'pmtiles://' + leftPmtilesUrl;
             const leftMap = new maplibregl.Map({
                 container: 'left-map',
@@ -156,7 +156,7 @@
                 zoom: zoom
             });
 
-            const rightStyle = {...styleJson};
+            const rightStyle = JSON.parse(JSON.stringify(styleJson));
             rightStyle["sources"]["protomaps"]["url"] = 'pmtiles://' + rightPmtilesUrl;
             const rightMap = new maplibregl.Map({
                 container: 'right-map',
